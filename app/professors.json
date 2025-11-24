@@ -1,0 +1,33 @@
+[
+    {
+        "name": "Dilma Da Silva",
+        "college": "TAMU",
+        "dept": "CSE",
+        "interests": "Cloud Computing, Operating Systems, Distributed Systems",
+        "url": "https://engineering.tamu.edu/cse/profiles/da-silva-dilma.html",
+        "openalex_author_id": "a5045204301"
+    },
+    {
+        "name": "James Caverlee",
+        "college": "TAMU",
+        "dept": "CSE",
+        "interests": "Information Retrieval, Data Mining, Social Media",
+        "url": "https://engineering.tamu.edu/cse/profiles/jcaverlee.html",
+        "openalex_author_id": "a5064455922"
+    },
+    {
+        "name": "Jeff Huang",
+        "college": "TAMU",
+        "dept": "CSE",
+        "interests": "Software engineering, Programming languages, Concurrency, Runtime verification",
+        "url": "https://engineering.tamu.edu/cse/profiles/huang-jeff.html",
+        "openalex_author_id": "a5103035835"
+    },
+    {
+        "name": "Yu Zhang",
+        "college": "TAMU",
+        "dept": "CSE",
+        "interests": "Data mining, Natural language processing, Artificial intelligence (AI) for science",
+        "url": "https://engineering.tamu.edu/cse/profiles/zhang-yu.html"
+    }
+]

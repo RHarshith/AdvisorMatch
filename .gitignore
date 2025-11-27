@@ -1,1 +1,30 @@
+# IDE
 .idea/*
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+
+# Don't ignore database and index files - we want to commit these
+# !app/advisormatch.db
+# !app/faiss_index.bin
+# !app/paper_id_mapping.json

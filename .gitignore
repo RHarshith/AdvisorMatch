@@ -23,8 +23,15 @@ ENV/
 # Temporary files
 *.tmp
 *.log
+aSD
 
-# Don't ignore database and index files - we want to commit these
-# !app/advisormatch.db
+# Old/duplicate files
+advisor_match.db
+app/advisormatch.db
+app/advisormatch.index
+app/paper_ids.pkl
+
+# Keep these important files:
+# !app/advisormatch_openalex.db
 # !app/faiss_index.bin
 # !app/paper_id_mapping.json

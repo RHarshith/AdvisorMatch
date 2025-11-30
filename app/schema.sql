@@ -5,7 +5,7 @@ PRAGMA foreign_keys = ON;
 -- Stores the faculty members you want to track.
 CREATE TABLE IF NOT EXISTS professors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
     college TEXT,
     dept TEXT,
     interests TEXT,

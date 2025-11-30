@@ -69,26 +69,47 @@ def search_openalex_author(name):
         print(f"  [!] Exception searching author: {e}")
         return None
 
-def get_openalex_works(author_id):
+def get_openalex_works(author_id, limit=MAX_PAPERS_PER_PROF):
     """
-    Get works for an author ID.
+    Get works for an author ID with pagination.
     """
     base_url = "https://api.openalex.org/works"
-    params = {
-        "filter": f"author.id:{author_id}",
-        "sort": "publication_year:desc",
-        "per_page": MAX_PAPERS_PER_PROF
-    }
+    all_results = []
+    per_page = 200 if limit > 200 else limit
+    page = 1
+    
+    while len(all_results) < limit:
+        params = {
+            "filter": f"author.id:{author_id}",
+            "sort": "publication_year:desc",
+            "per_page": per_page,
+            "page": page
+        }
 
-    try:
-        r = requests.get(base_url, params=params, headers=HEADERS)
-        if r.status_code != 200:
-            return []
+        try:
+            r = requests.get(base_url, params=params, headers=HEADERS)
+            if r.status_code != 200:
+                print(f"  [!] Error {r.status_code} fetching page {page}")
+                break
 
-        return r.json().get('results', [])
-    except Exception as e:
-        print(f"  [!] Exception fetching works: {e}")
-        return []
+            results = r.json().get('results', [])
+            if not results:
+                break
+                
+            all_results.extend(results)
+            page += 1
+            
+            # If we got fewer than requested, we are done
+            if len(results) < per_page:
+                break
+                
+        except Exception as e:
+            print(f"  [!] Exception fetching works: {e}")
+            break
+            
+    return all_results[:limit]
+
+
 
 def extract_author_stats(openalex_author_id, authorships):
     """
@@ -103,7 +124,7 @@ def extract_author_stats(openalex_author_id, authorships):
 
     for i, auth in enumerate(authorships):
         # auth['author']['id'] is the full URL
-        curr_id = auth.get('author', {}).get('id', '')
+        curr_id = auth.get('author', {}).get('id') or ''
         if short_id in curr_id:
             position = i + 1
             if auth.get('author_position') == 'first' or position == 1:
@@ -111,6 +132,21 @@ def extract_author_stats(openalex_author_id, authorships):
             break
 
     return is_primary, position
+
+def reconstruct_abstract(inverted_index):
+    """
+    Reconstructs abstract from OpenAlex inverted index.
+    """
+    if not inverted_index:
+        return ""
+    
+    word_positions = []
+    for word, positions in inverted_index.items():
+        for pos in positions:
+            word_positions.append((pos, word))
+    
+    word_positions.sort()
+    return " ".join(word for _, word in word_positions)
 
 def ingest():
     conn = init_db()
@@ -142,14 +178,25 @@ def ingest():
 
         # 2. Insert Professor
         cursor.execute('''
-            INSERT INTO professors (name, college, dept, interests, openalex_author_id)
+            INSERT OR IGNORE INTO professors (name, college, dept, interests, openalex_author_id)
             VALUES (?, ?, ?, ?, ?)
         ''', (prof['name'], prof['college'], prof['dept'], prof['interests'], oa_id))
-        prof_db_id = cursor.lastrowid
+        
+        # Get the ID (whether new or existing)
+        cursor.execute('SELECT id FROM professors WHERE name = ?', (prof['name'],))
+        prof_db_id = cursor.fetchone()[0]
 
         # 3. Get Works
-        works = get_openalex_works(oa_id)
-        print(f"  [+] Found {len(works)} recent works.")
+        # If affiliation filter is present, fetch MORE papers to ensure we find the right ones
+        # amidst the noise of a merged profile.
+        limit = MAX_PAPERS_PER_PROF
+        if prof.get('affiliation_filter'):
+            limit = 1000
+            print(f"  [i] Affiliation filter detected. Deep fetching {limit} works...")
+        
+        works = get_openalex_works(oa_id, limit=limit)
+        
+        print(f"  [+] Found {len(works)} works.")
 
         for work in works:
             title = work.get('title')
@@ -172,8 +219,35 @@ def ingest():
                 if not url:
                     url = primary_loc.get('landing_page_url')
 
-            # Simple abstract reconstruction
-            abstract = "Abstract available in full OpenAlex data"
+            # Reconstruct abstract
+            abstract = reconstruct_abstract(work.get('abstract_inverted_index'))
+
+            # Check affiliation filter if exists
+            aff_filter = prof.get('affiliation_filter')
+            if aff_filter:
+                # Get affiliations for this author in this work
+                author_affiliations = []
+                for authorship in work.get('authorships', []):
+                    if oa_id in authorship.get('author', {}).get('id', ''):
+                        for inst in authorship.get('institutions', []):
+                            author_affiliations.append(inst.get('display_name', ''))
+                
+                # Check match
+                match = False
+                for aff in author_affiliations:
+                    for keyword in aff_filter:
+                        if keyword.lower() in aff.lower():
+                            match = True
+                            break
+                    if match: break
+                
+                if not match:
+                    print(f"    [x] Skipped '{title[:30]}...' (Affiliation mismatch: {author_affiliations})")
+                    # Debug: Print what we were looking for
+                    # print(f"        Expected one of: {aff_filter}")
+                    continue
+                else:
+                    print(f"    [v] Kept '{title[:30]}...' (Matched: {author_affiliations})")
 
             cursor.execute('''
                 INSERT OR IGNORE INTO publications 

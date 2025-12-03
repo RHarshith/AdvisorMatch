@@ -31,6 +31,7 @@ class ProfessorResult(BaseModel):
     college: str
     interests: Optional[str]
     url: Optional[str]
+    image_url: Optional[str] = None
     
     # Ranking details
     final_score: float = Field(..., description="Final ranking score")
@@ -60,6 +61,7 @@ class ProfessorDetail(BaseModel):
     department: str
     interests: Optional[str]
     url: Optional[str]
+    image_url: Optional[str] = None
     openalex_author_id: Optional[str]
     total_publications: int
     recent_publications: int  # Last 2 years

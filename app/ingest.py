@@ -182,10 +182,15 @@ def ingest():
             print(f"  [i] Found ID: {oa_id}")
 
         # 2. Insert Professor
+        # Generate placeholder image URL
+        import urllib.parse
+        encoded_name = urllib.parse.quote(prof['name'])
+        image_url = f"https://ui-avatars.com/api/?name={encoded_name}&background=random&color=fff&size=128&format=svg"
+
         cursor.execute('''
-            INSERT OR IGNORE INTO professors (name, college, dept, interests, openalex_author_id)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (prof['name'], prof['college'], prof['dept'], prof['interests'], oa_id))
+            INSERT OR IGNORE INTO professors (name, college, dept, interests, openalex_author_id, image_url)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (prof['name'], prof['college'], prof['dept'], prof['interests'], oa_id, image_url))
         
         # Get the ID (whether new or existing)
         cursor.execute('SELECT id FROM professors WHERE name = ?', (prof['name'],))

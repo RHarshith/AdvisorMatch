@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS professors (
     dept TEXT,
     interests TEXT,
     openalex_author_id TEXT, -- To avoid re-searching the API
+    image_url TEXT, -- URL to professor's photo
     embedding BLOB, -- Placeholder for vector embedding (e.g., from bio/interests)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

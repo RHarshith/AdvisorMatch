@@ -268,7 +268,7 @@ def get_professor_details(professor_id: int, conn: sqlite3.Connection) -> Dict:
     
     # Get professor info
     cursor.execute("""
-        SELECT id, name, college, dept, interests, openalex_author_id
+        SELECT id, name, college, dept, interests, openalex_author_id, image_url
         FROM professors
         WHERE id = ?
     """, (professor_id,))
@@ -277,7 +277,7 @@ def get_professor_details(professor_id: int, conn: sqlite3.Connection) -> Dict:
     if not row:
         return None
     
-    prof_id, name, college, dept, interests, oa_id = row
+    prof_id, name, college, dept, interests, oa_id, image_url = row
     
     # Count total publications
     cursor.execute("""
@@ -305,6 +305,7 @@ def get_professor_details(professor_id: int, conn: sqlite3.Connection) -> Dict:
         'interests': interests,
         'url': None,  # URL not in database
         'openalex_author_id': oa_id,
+        'image_url': row[6] if len(row) > 6 else None,
         'total_publications': total_pubs,
         'recent_publications': recent_pubs
     }

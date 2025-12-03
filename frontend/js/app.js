@@ -95,10 +95,15 @@ function createProfessorCard(professor, rank) {
 
     card.innerHTML = `
         <div class="professor-header">
-            <div class="professor-info">
-                <h3>${rank}. ${professor.name}</h3>
-                <div class="professor-meta">
-                    ${professor.department} • ${professor.college}
+            <div class="professor-header-content">
+                ${professor.image_url ? `
+                    <img src="${professor.image_url}" alt="${professor.name}" class="professor-image">
+                ` : ''}
+                <div class="professor-info">
+                    <h3>${rank}. ${professor.name}</h3>
+                    <div class="professor-meta">
+                        ${professor.department} • ${professor.college}
+                    </div>
                 </div>
             </div>
             <div class="score-badge">

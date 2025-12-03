@@ -138,7 +138,9 @@ body {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Error Message */
@@ -201,6 +203,20 @@ body {
     color: var(--primary-color);
     font-size: 1.4rem;
     margin-bottom: 5px;
+}
+
+.professor-header-content {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.professor-image {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color);
 }
 
 .professor-meta {
@@ -329,20 +345,20 @@ body {
     .logo h1 {
         font-size: 2rem;
     }
-    
+
     .search-box {
         flex-direction: column;
     }
-    
+
     .professor-header {
         flex-direction: column;
         gap: 10px;
     }
-    
+
     .score-breakdown {
         flex-direction: column;
     }
-    
+
     .detail-row {
         flex-direction: column;
         gap: 5px;

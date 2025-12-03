@@ -181,6 +181,7 @@ async def search_advisors(request: SearchRequest):
                 college=prof_details['college'],
                 interests=prof_details['interests'],
                 url=prof_details['url'],
+                image_url=prof_details.get('image_url'),
                 final_score=ranking['final_score'],
                 avg_similarity=ranking['avg_similarity'],
                 recency_weight=ranking['recency_weight'],

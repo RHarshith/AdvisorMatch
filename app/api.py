@@ -114,6 +114,7 @@ async def search_advisors(request: SearchRequest):
     - Semantic similarity to query
     - Publication recency (exponential decay)
     - Author activity (recent publications bonus)
+    - Citation impact (log-normalized citation counts)
     """
     start_time = time.time()
     
@@ -184,6 +185,7 @@ async def search_advisors(request: SearchRequest):
                 avg_similarity=ranking['avg_similarity'],
                 recency_weight=ranking['recency_weight'],
                 activity_bonus=ranking['activity_bonus'],
+                citation_impact=ranking['citation_impact'],
                 num_matching_papers=ranking['num_matching_papers'],
                 top_publications=top_pubs
             ))

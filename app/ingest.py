@@ -15,7 +15,7 @@ SCHEMA_FILE = "schema.sql"
 HEADERS = {
     "User-Agent": "mailto:test@advisormatch.edu"
 }
-MAX_PAPERS_PER_PROF = 5
+MAX_PAPERS_PER_PROF = 20  # Increased from 5 to get more comprehensive data
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -149,9 +149,14 @@ def reconstruct_abstract(inverted_index):
     return " ".join(word for _, word in word_positions)
 
 def ingest():
+    # Initialize DB schema and get connection
     conn = init_db()
     cursor = conn.cursor()
-
+    
+    # Disable foreign key constraints during ingestion
+    cursor.execute("PRAGMA foreign_keys = OFF")
+    conn.commit()  # Commit the pragma change
+    
     with open(INPUT_FILE, 'r') as f:
         professors = json.load(f)
 
@@ -267,6 +272,8 @@ def ingest():
         conn.commit()
         time.sleep(0.5) # Be polite
 
+    # Re-enable foreign key constraints
+    cursor.execute("PRAGMA foreign_keys = ON")
     conn.close()
     print("\nDone!")
 

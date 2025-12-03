@@ -142,6 +142,10 @@ function createProfessorCard(professor, rank) {
                 <div class="score-item-label">Activity</div>
                 <div class="score-item-value">+${(professor.activity_bonus * 100).toFixed(1)}%</div>
             </div>
+            <div class="score-item">
+                <div class="score-item-label">Citations</div>
+                <div class="score-item-value">${(professor.citation_impact * 100).toFixed(1)}%</div>
+            </div>
         </div>
         
         ${professor.top_publications && professor.top_publications.length > 0 ? `

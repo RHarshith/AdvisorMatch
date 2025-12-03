@@ -17,7 +17,10 @@ from config import (
     DECAY_RATE,
     ACTIVITY_THRESHOLD_YEARS,
     ACTIVITY_BONUS_PER_PAPER,
-    MAX_ACTIVITY_BONUS
+    MAX_ACTIVITY_BONUS,
+    CITATION_WEIGHT,
+    CITATION_LOG_BASE,
+    FIRST_AUTHOR_BONUS
 )
 
 
@@ -58,13 +61,61 @@ def calculate_activity_bonus(recent_paper_count: int) -> float:
     return min(bonus, MAX_ACTIVITY_BONUS)
 
 
+def calculate_citation_impact(papers: List[Tuple[str, float, int, int]], conn: sqlite3.Connection) -> float:
+    """
+    Calculate citation impact score based on paper citations.
+    Uses logarithmic scaling to normalize citation counts.
+    
+    Args:
+        papers: List of (paper_id, similarity, year, author_position) tuples
+        conn: Database connection
+    
+    Returns:
+        Citation impact score between 0 and 1
+    """
+    if not papers:
+        return 0.0
+    
+    cursor = conn.cursor()
+    
+    # Get citation counts for papers
+    paper_ids = [p[0] for p in papers]
+    placeholders = ','.join('?' * len(paper_ids))
+    
+    cursor.execute(f"""
+        SELECT paper_id, citation_count
+        FROM publications
+        WHERE paper_id IN ({placeholders})
+    """, paper_ids)
+    
+    citation_map = {row[0]: row[1] or 0 for row in cursor.fetchall()}
+    
+    # Calculate log-normalized citation scores
+    citation_scores = []
+    for paper_id, _, _, _ in papers:  # Unpack 4 values now
+        citations = citation_map.get(paper_id, 0)
+        # Use log(1 + citations) to handle 0 citations and reduce skew
+        log_citations = math.log(1 + citations, CITATION_LOG_BASE)
+        citation_scores.append(log_citations)
+    
+    if not citation_scores:
+        return 0.0
+    
+    # Average citation score, normalized to 0-1 range
+    # Assuming log10(1000) = 3 as a reasonable upper bound
+    avg_citation_score = np.mean(citation_scores)
+    normalized_score = min(avg_citation_score / 3.0, 1.0)
+    
+    return normalized_score
+
+
 def aggregate_papers_by_professor(
     paper_ids: List[str],
     similarities: List[float],
     conn: sqlite3.Connection
-) -> Dict[int, List[Tuple[str, float, int]]]:
+) -> Dict[int, List[Tuple[str, float, int, int]]]:
     """
-    Aggregate papers by professor.
+    Aggregate papers by professor with authorship information.
     
     Args:
         paper_ids: List of paper IDs from FAISS search
@@ -72,17 +123,18 @@ def aggregate_papers_by_professor(
         conn: Database connection
     
     Returns:
-        Dict mapping professor_id to list of (paper_id, similarity, year) tuples
+        Dict mapping professor_id to list of (paper_id, similarity, year, author_position) tuples
     """
     cursor = conn.cursor()
     
-    # Get professor-paper mappings
+    # Get professor-paper mappings with authorship info
     placeholders = ','.join('?' * len(paper_ids))
     cursor.execute(f"""
         SELECT 
             ab.professor_id,
             pub.paper_id,
-            pub.year
+            pub.year,
+            ab.author_position
         FROM author_bridge ab
         JOIN publications pub ON ab.paper_id = pub.paper_id
         WHERE pub.paper_id IN ({placeholders})
@@ -92,12 +144,12 @@ def aggregate_papers_by_professor(
     professor_papers = {}
     paper_similarity_map = dict(zip(paper_ids, similarities))
     
-    for prof_id, paper_id, year in cursor.fetchall():
+    for prof_id, paper_id, year, author_pos in cursor.fetchall():
         if prof_id not in professor_papers:
             professor_papers[prof_id] = []
         
         similarity = paper_similarity_map.get(paper_id, 0.0)
-        professor_papers[prof_id].append((paper_id, similarity, year))
+        professor_papers[prof_id].append((paper_id, similarity, year, author_pos))
     
     return professor_papers
 
@@ -112,13 +164,15 @@ def rank_professors(
     Rank professors using enhanced algorithm.
     
     Algorithm:
-        1. Aggregate papers by professor
+        1. Aggregate papers by professor (with authorship info)
         2. For each professor:
            a. Take top-N most similar papers
-           b. Calculate average similarity
-           c. Calculate weighted recency score
-           d. Calculate activity bonus
-           e. Combine into final score
+           b. For each paper: calculate (similarity × recency_weight)
+           c. Apply 20% bonus if professor is first author
+           d. Average the weighted scores
+           e. Calculate activity bonus
+           f. Calculate citation impact
+           g. Combine into final score
         3. Sort by final score
     
     Args:
@@ -148,12 +202,26 @@ def rank_professors(
         if not top_papers:
             continue
         
-        # Calculate average similarity
-        avg_similarity = np.mean([sim for _, sim, _ in top_papers])
+        # Calculate weighted score for each paper individually
+        # Apply first-author bonus if professor is first author
+        weighted_scores = []
+        for paper_id, similarity, year, author_pos in top_papers:
+            recency_weight = calculate_recency_weight(year, current_year)
+            weighted_score = similarity * recency_weight
+            
+            # Apply first-author bonus (20% boost)
+            if author_pos == 1:
+                weighted_score *= (1 + FIRST_AUTHOR_BONUS)
+            
+            weighted_scores.append(weighted_score)
         
-        # Calculate weighted recency score
+        # Average the weighted scores
+        avg_weighted_score = np.mean(weighted_scores)
+        
+        # Also calculate individual components for display/debugging
+        avg_similarity = np.mean([sim for _, sim, _, _ in top_papers])
         recency_weights = [calculate_recency_weight(year, current_year) 
-                          for _, _, year in top_papers]
+                          for _, _, year, _ in top_papers]
         avg_recency_weight = np.mean(recency_weights)
         
         # Calculate activity bonus
@@ -161,8 +229,12 @@ def rank_professors(
                         if p[2] and p[2] >= current_year - ACTIVITY_THRESHOLD_YEARS]
         activity_bonus = calculate_activity_bonus(len(recent_papers))
         
-        # Calculate final score
-        final_score = (avg_similarity * avg_recency_weight) + activity_bonus
+        # Calculate citation impact
+        citation_impact = calculate_citation_impact(top_papers, conn)
+        
+        # Calculate final score using the weighted average
+        # Formula: avg(similarity × recency per paper) + activity + (citation × weight)
+        final_score = avg_weighted_score + activity_bonus + (citation_impact * CITATION_WEIGHT)
         
         rankings.append({
             'professor_id': prof_id,
@@ -170,8 +242,9 @@ def rank_professors(
             'avg_similarity': float(avg_similarity),
             'recency_weight': float(avg_recency_weight),
             'activity_bonus': float(activity_bonus),
+            'citation_impact': float(citation_impact),
             'num_matching_papers': len(papers),
-            'top_paper_ids': [pid for pid, _, _ in top_papers]
+            'top_paper_ids': [pid for pid, _, _, _ in top_papers]
         })
     
     # Sort by final score (descending)

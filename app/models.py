@@ -37,6 +37,7 @@ class ProfessorResult(BaseModel):
     avg_similarity: float = Field(..., description="Average similarity of top papers")
     recency_weight: float = Field(..., description="Recency weighting factor")
     activity_bonus: float = Field(..., description="Activity bonus")
+    citation_impact: float = Field(..., description="Citation impact score")
     num_matching_papers: int = Field(..., description="Number of matching papers")
     
     # Optional publications

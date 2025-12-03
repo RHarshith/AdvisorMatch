@@ -18,8 +18,8 @@ from typing import List, Tuple
 import argparse
 
 DB_NAME = "advisormatch.db"
-MODEL_NAME = "all-mpnet-base-v2"
-EMBEDDING_DIM = 768
+MODEL_NAME = "all-MiniLM-L6-v2"  # 384-dimensional (matches config.py)
+EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 dimension
 
 def load_model():
     """Load the Sentence-BERT model."""

@@ -18,7 +18,7 @@ EMBEDDING_DIM = 384
 # Ranking parameters
 TOP_K_PAPERS = 50  # Number of papers to retrieve from FAISS
 TOP_N_PER_PROFESSOR = 10  # Number of top papers to consider per professor (increased from 5)
-DECAY_RATE = 0.1  # Exponential decay rate for recency weighting
+DECAY_RATE = 0.05  # Exponential decay rate for recency weighting (lowered from 0.1 to preserve older high-sim papers)
 ACTIVITY_THRESHOLD_YEARS = 2  # Years to consider for activity bonus
 ACTIVITY_BONUS_PER_PAPER = 0.05  # Bonus per recent paper
 MAX_ACTIVITY_BONUS = 0.2  # Maximum activity bonus cap

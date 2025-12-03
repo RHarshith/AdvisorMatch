@@ -454,12 +454,19 @@
         "openalex_author_id": "A5037680267"
     },
     {
+        "name": "Michael Moore",
+        "college": "College of Arts & Sciences",
+        "dept": "Psychological and Brain Sciences",
+        "interests": "Psychological and Brain Sciences",
+        "url": "https://artsci.tamu.edu/psychological-brain-sciences/people/profiles/michael-moore.html",
+        "openalex_author_id": "A5044049970"
+    },
+    {
         "name": "Shawn Lupoli",
         "college": "TAMU",
         "dept": "CSE",
         "interests": "",
-        "url": "https://engineering.tamu.edu/cse/profiles/lupoli-shawn.html",
-        "openalex_author_id": "A5013975537"
+        "url": "https://engineering.tamu.edu/cse/profiles/lupoli-shawn.html"
     },
     {
         "name": "Shawna Thomas",

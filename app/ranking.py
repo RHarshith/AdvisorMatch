@@ -326,7 +326,7 @@ def get_publication_details(paper_id: str, conn: sqlite3.Connection) -> Dict:
     
     # Get publication info
     cursor.execute("""
-        SELECT paper_id, title, abstract, year, citation_count, venue
+        SELECT paper_id, title, abstract, year, citation_count, venue, url
         FROM publications
         WHERE paper_id = ?
     """, (paper_id,))
@@ -335,7 +335,7 @@ def get_publication_details(paper_id: str, conn: sqlite3.Connection) -> Dict:
     if not row:
         return None
     
-    pid, title, abstract, year, citations, venue = row
+    pid, title, abstract, year, citations, venue, url = row
     
     # Get authors
     cursor.execute("""
@@ -362,6 +362,6 @@ def get_publication_details(paper_id: str, conn: sqlite3.Connection) -> Dict:
         'year': year,
         'citation_count': citations,
         'venue': venue,
-        'url': pid,  # Use paper_id as URL (OpenAlex ID)
+        'url': url,
         'authors': authors
     }

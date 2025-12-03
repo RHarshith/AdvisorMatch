@@ -29,6 +29,8 @@ from models import (
 from ranking import (
     rank_professors, get_professor_details, get_publication_details
 )
+from spellcheck import DomainSpellChecker
+from bm25_search import BM25Searcher
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -50,12 +52,14 @@ app.add_middleware(
 model = None
 index = None
 paper_mapping = None
+spell_checker = None
+bm25_searcher = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Load model, FAISS index, and paper mapping on startup"""
-    global model, index, paper_mapping
+    global model, index, paper_mapping, spell_checker, bm25_searcher
     
     print("Loading Sentence-BERT model...")
     model = SentenceTransformer(MODEL_NAME)
@@ -68,6 +72,12 @@ async def startup_event():
         paper_mapping = json.load(f)
     # Convert string keys to integers
     paper_mapping = {int(k): v for k, v in paper_mapping.items()}
+    
+    print("Loading spell checker...")
+    spell_checker = DomainSpellChecker(str(DB_PATH))
+    
+    print("Loading BM25 searcher...")
+    bm25_searcher = BM25Searcher(str(DB_PATH))
     
     print(f"✓ Startup complete. Index size: {index.ntotal} vectors")
 
@@ -123,8 +133,13 @@ async def search_advisors(request: SearchRequest):
         raise HTTPException(status_code=503, detail="Service not ready. Model or index not loaded.")
     
     try:
-        # Generate query embedding
-        query_embedding = model.encode([request.query], normalize_embeddings=True)
+        # Spell check query
+        corrected_query = spell_checker.correct_text(request.query)
+        if corrected_query != request.query.lower():
+            print(f"Corrected query: '{request.query}' -> '{corrected_query}'")
+        
+        # Generate query embedding (use corrected query)
+        query_embedding = model.encode([corrected_query], normalize_embeddings=True)
         query_embedding = query_embedding.astype('float32')
         
         # Search FAISS index
@@ -170,7 +185,8 @@ async def search_advisors(request: SearchRequest):
                             year=pub_details['year'],
                             similarity=similarity,
                             citations=pub_details['citation_count'],
-                            venue=pub_details['venue']
+                            venue=pub_details['venue'],
+                            url=pub_details['url']
                         ))
             
             # Create professor result
@@ -198,13 +214,122 @@ async def search_advisors(request: SearchRequest):
         
         return SearchResponse(
             query=request.query,
+            corrected_query=corrected_query if corrected_query != request.query.lower() else None,
             results=results,
             total_results=len(results),
             search_time_ms=search_time_ms
         )
     
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.post("/api/bm25/search", response_model=SearchResponse, tags=["Search"])
+async def bm25_search(request: SearchRequest):
+    """
+    Search for papers using BM25 (Lexical Search).
+    """
+    global bm25_searcher
+    start_time = time.time()
+    
+    if not bm25_searcher:
+        raise HTTPException(status_code=503, detail="Service not ready. BM25 not loaded.")
+    
+    try:
+        # Get raw paper results from BM25
+        # Request more papers initially to ensure we have enough coverage for grouping
+        raw_results = bm25_searcher.search(request.query, top_k=request.top_k * 5)
+        
+        conn = sqlite3.connect(str(DB_PATH))
+        
+        # Group papers by professor
+        prof_papers = {}
+        for paper in raw_results:
+            # We need to get the professor ID for this paper
+            # The BM25Searcher only returns professor name, so we query the DB
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.id 
+                FROM professors p
+                JOIN author_bridge ab ON p.id = ab.professor_id
+                WHERE ab.paper_id = ?
+                LIMIT 1
+            """, (paper['paper_id'],))
+            row = cursor.fetchone()
+            
+            if row:
+                prof_id = row[0]
+                if prof_id not in prof_papers:
+                    prof_papers[prof_id] = []
+                prof_papers[prof_id].append(paper)
+        
+        # Calculate scores and create results
+        results = []
+        for prof_id, papers in prof_papers.items():
+            # Get professor details
+            prof_details = get_professor_details(prof_id, conn)
+            if not prof_details:
+                continue
+                
+            # Calculate average BM25 score for top papers
+            # Sort papers by score descending
+            papers.sort(key=lambda x: x['score'], reverse=True)
+            top_papers = papers[:3] # Keep top 3 for display
+            
+            avg_score = sum(p['score'] for p in top_papers) / len(top_papers)
+            
+            # Create publication summaries
+            pub_summaries = []
+            for p in top_papers:
+                pub_summaries.append(PublicationSummary(
+                    paper_id=p['paper_id'],
+                    title=p['title'],
+                    year=p['year'],
+                    similarity=p['score'], # Use BM25 score as "similarity"
+                    citations=p['citations'],
+                    venue=p['venue'],
+                    url=p['url']
+                ))
+            
+            # Create professor result
+            # We map BM25 score to "final_score" and "avg_similarity" for compatibility
+            results.append(ProfessorResult(
+                professor_id=prof_id,
+                name=prof_details['name'],
+                department=prof_details['department'],
+                college=prof_details['college'],
+                interests=prof_details['interests'],
+                url=prof_details['url'],
+                image_url=prof_details.get('image_url'),
+                final_score=avg_score,
+                avg_similarity=avg_score, # Using BM25 score here
+                recency_weight=0.0, # Not applicable for raw BM25
+                activity_bonus=0.0,
+                citation_impact=0.0,
+                num_matching_papers=len(papers),
+                top_publications=pub_summaries
+            ))
+            
+        conn.close()
+        
+        # Sort by score and take top_k
+        results.sort(key=lambda x: x.final_score, reverse=True)
+        results = results[:request.top_k]
+        
+        search_time_ms = (time.time() - start_time) * 1000
+        
+        return SearchResponse(
+            query=request.query,
+            results=results,
+            total_results=len(results),
+            search_time_ms=search_time_ms
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"BM25 Search failed: {str(e)}")
 
 
 @app.get("/api/professor/{professor_id}", response_model=ProfessorDetail, tags=["Professors"])

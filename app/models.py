@@ -21,6 +21,7 @@ class PublicationSummary(BaseModel):
     similarity: float = Field(..., description="Cosine similarity to query")
     citations: Optional[int]
     venue: Optional[str]
+    url: Optional[str]
 
 
 class ProfessorResult(BaseModel):

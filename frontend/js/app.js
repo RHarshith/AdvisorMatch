@@ -93,6 +93,23 @@ function createProfessorCard(professor, rank) {
     // Score percentage for display
     const scorePercent = (professor.final_score * 100).toFixed(1);
 
+    // Determine gauge color
+    let gaugeColor = '#dc3545'; // Red
+    if (professor.final_score > 0.5) {
+        gaugeColor = '#28a745'; // Green
+    } else if (professor.final_score >= 0.3) {
+        gaugeColor = '#ffc107'; // Amber
+    }
+
+    // SVG Gauge Calculation
+    // Semi-circle arc length = PI * R
+    // R = 50 (viewBox 0 0 120 60, center 60,60)
+    // Circumference = 157
+    const radius = 50;
+    const circumference = Math.PI * radius;
+    const dashArray = circumference;
+    const dashOffset = circumference * (1 - professor.final_score);
+
     card.innerHTML = `
         <div class="professor-header">
             <div class="professor-header-content">
@@ -106,8 +123,17 @@ function createProfessorCard(professor, rank) {
                     </div>
                 </div>
             </div>
-            <div class="score-badge">
-                Score: ${scorePercent}%
+            
+            <div class="gauge-container">
+                <svg viewBox="0 0 120 60" class="gauge-svg">
+                    <!-- Background Arc -->
+                    <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#eee" stroke-width="15" />
+                    <!-- Fill Arc -->
+                    <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="${gaugeColor}" stroke-width="15" 
+                          stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}" />
+                </svg>
+                <div class="gauge-text">${scorePercent}%</div>
+                <div class="gauge-label">Match Score</div>
             </div>
         </div>
         
@@ -136,7 +162,7 @@ function createProfessorCard(professor, rank) {
         
         <div class="score-breakdown">
             <div class="score-item">
-                <div class="score-item-label">Similarity</div>
+                <div class="score-item-label">Paper Similarity</div>
                 <div class="score-item-value">${(professor.avg_similarity * 100).toFixed(1)}%</div>
             </div>
             <div class="score-item">
@@ -166,9 +192,21 @@ function createProfessorCard(professor, rank) {
 
 // Create Publication HTML
 function createPublicationHTML(publication) {
+    // Determine border color class
+    let borderClass = 'pub-border-red';
+    if (publication.similarity > 0.5) {
+        borderClass = 'pub-border-green';
+    } else if (publication.similarity >= 0.3) {
+        borderClass = 'pub-border-amber';
+    }
+
     return `
-        <div class="publication-item">
-            <div class="publication-title">${publication.title}</div>
+        <div class="publication-item ${borderClass}">
+            <div class="publication-title">
+                ${publication.url ?
+            `<a href="${publication.url}" target="_blank" class="publication-link">${publication.title}</a>` :
+            publication.title}
+            </div>
             <div class="publication-meta">
                 <span>${publication.year || 'N/A'}</span>
                 <span>•</span>
@@ -178,7 +216,7 @@ function createPublicationHTML(publication) {
                     <span>${publication.venue}</span>
                 ` : ''}
                 <span>•</span>
-                <span class="similarity-score">Similarity: ${(publication.similarity * 100).toFixed(1)}%</span>
+                <span class="similarity-score">Paper Similarity: ${(publication.similarity * 100).toFixed(1)}%</span>
             </div>
         </div>
     `;
